@@ -60,4 +60,8 @@ void el2belMapFromFile(int srcFd, int dstFd, SrcDstIncrement currIndexInFiles, S
     dst.freeStateMachine();
   }
 
+  src.freeStateMachine();
+  dst.freeStateMachine();
+  int res = ftruncate(dstFd, totalAmountForward.dstIncrement);
+  if(res) throw "Truncate failed";
 }

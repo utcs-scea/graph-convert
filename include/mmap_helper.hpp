@@ -31,6 +31,7 @@ struct MMapBuffer {
   void allocateStateMachine(int fd, int prot, bool isPublic, uint64_t limits, uint64_t currIndex) {
     assert(limits >= currIndex);
     if(limits == currIndex) return;
+    if(this->currIndex > this->dataLimit) return;
     assert(!buf);
     this->currIndex = 0;
     this->dataLimit = std::min(limits - currIndex, PAGE_SIZE);
@@ -60,7 +61,7 @@ struct SrcDstIncrement {
     return (srcIncrement == other.srcIncrement) && (dstIncrement == other.dstIncrement);
   }
   bool operator<(const SrcDstIncrement& other) const {
-    return (srcIncrement < other.srcIncrement) || (dstIncrement < other.dstIncrement);
+    return (srcIncrement < other.srcIncrement) && (dstIncrement < other.dstIncrement);
   }
   SrcDstIncrement operator+=(const SrcDstIncrement& other) {
     srcIncrement += other.srcIncrement;
