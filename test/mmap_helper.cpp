@@ -2,6 +2,8 @@
 #include <gtest/gtest.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <omp.h>
+
 #include "mmap_helper.hpp"
 
 constexpr uint64_t TEST_PAGE_SZ = 1ull << 12;
@@ -117,35 +119,120 @@ TEST(MMapBuffer, StateMachine) {
   close(fd);
 }
 
-TEST(el2belMapFromFile, CommaTest) {
+class el2belSingleThreadTest : public ::testing::TestWithParam<std::tuple<const char*, uint64_t, std::vector<uint64_t>>> {};
+
+TEST_P(el2belSingleThreadTest, SimpleTest) {
 
   // Create A file with a few numbers in it.
   int elFd = open("./", O_TMPFILE | O_RDWR, S_IRUSR | S_IWUSR);
   ASSERT_GT(elFd, 0);
+  const char* input = std::get<0>(GetParam());
+  uint64_t length = std::get<1>(GetParam());
 
-  auto size = pwrite(elFd, "1,1", 3, 0);
-  ASSERT_EQ(size, 3);
+  auto size = pwrite(elFd, input, length, 0);
+  ASSERT_EQ(size, length);
 
   // Create a file to write the bel
   int belFd = open("./", O_TMPFILE | O_RDWR, S_IRUSR | S_IWUSR);
   ASSERT_GT(belFd, 0);
 
   // Attempt to write
-  el2belMapFromFile(elFd, belFd, {0,0}, {3, UINT64_MAX});
+  el2belMapFromFile(elFd, belFd, {0,0}, {length, UINT64_MAX});
+
+  std::vector<uint64_t> ans = std::get<2>(GetParam());
 
   //Check File Size
   struct stat fileinfo;
   ASSERT_EQ(fstat(belFd, &fileinfo), 0);
-  ASSERT_EQ(fileinfo.st_size, 16);
+  ASSERT_EQ(fileinfo.st_size, ans.size() * 8);
 
   // Check content
-  MMapBuffer buffer {};
-  ASSERT_NO_THROW(buffer.allocateStateMachine<TEST_PAGE_SZ>(belFd, PROT_READ, false, 16, 0));
-  EXPECT_NE(buffer.buf, nullptr);
-  EXPECT_NE(buffer.buf, MAP_FAILED);
-  EXPECT_EQ(buffer.currIndex, 0);
-  EXPECT_EQ(buffer.dataLimit, 16);
+  uint64_t actual;
+  for(uint64_t i = 0; i < ans.size(); i++) {
+    size = pread(belFd, &actual, 8, i * 8);
+    ASSERT_EQ(size, 8);
+    uint64_t expected = ans[i];
+    ASSERT_EQ(actual, expected);
+  }
 
   close(elFd);
   close(belFd);
 }
+
+INSTANTIATE_TEST_SUITE_P(SimpleValues, el2belSingleThreadTest,
+                         ::testing::Values(std::make_tuple("1,1", 3, std::vector<uint64_t>({1, 1})),
+                                          std::make_tuple("100\00056", 6, std::vector<uint64_t>({100, 56})),
+                                          std::make_tuple("100 56", 6, std::vector<uint64_t>({100, 56}))
+                           ));
+
+struct el2belOMPThreadTestArgs {
+  uint64_t numThreads;
+  const char* contents;
+  uint64_t contentLength;
+  std::vector<uint64_t> ans;
+};
+
+class el2belOMPThreadTest: public ::testing::TestWithParam<el2belOMPThreadTestArgs> {};
+
+TEST_P(el2belOMPThreadTest, SimpleTest) {
+  const el2belOMPThreadTestArgs args = GetParam();
+  omp_set_dynamic(0);
+  omp_set_num_threads(args.numThreads);
+
+  // Create A file with a few numbers in it.
+  int elFd = open("./", O_TMPFILE | O_RDWR, S_IRUSR | S_IWUSR);
+  ASSERT_GT(elFd, 0);
+  const char* input = args.contents;
+  const uint64_t length = args.contentLength;
+
+  auto size = pwrite(elFd, input, length, 0);
+  ASSERT_EQ(size, length);
+
+  // Create a file to write the bel
+
+  // Attempt to write
+  const char* outputStub = "./el2belOMPThreadTest";
+  ASSERT_EQ(el2belConvert(elFd, outputStub), 0);
+
+  const std::vector<uint64_t> ans = args.ans;
+
+  // Check result
+  uint64_t totalSize = 0;
+  uint64_t newStringLength = strlen("./el2belOMPThreadTest") + 22;
+  char* belFileName = (char*) malloc(sizeof(char) * newStringLength);
+  auto vecIter = ans.begin();
+  uint64_t actual;
+  for(uint64_t i = 0; i < args.numThreads; i++) {
+
+    // Get file
+    snprintf(belFileName, newStringLength - 1, "%s-%lx", outputStub, i);
+    int belFd = open(belFileName, O_RDONLY, S_IRUSR | S_IWUSR);
+    ASSERT_GT(belFd, 0);
+
+    // Stat file
+    struct stat fileinfo;
+    ASSERT_EQ(fstat(belFd, &fileinfo), 0);
+    // Check Sizes
+    ASSERT_LT(totalSize, ans.size() * 8);
+    totalSize += fileinfo.st_size;
+
+    // Check Contents
+    for(uint64_t j = 0; j < fileinfo.st_size; j+=8, vecIter++) {
+      size = pread(belFd, &actual, 8, j);
+      ASSERT_EQ(actual, *vecIter);
+    }
+    close(belFd);
+    unlink(belFileName);
+  }
+
+  // Check Size
+  ASSERT_EQ(totalSize, ans.size() * 8);
+
+  free(belFileName);
+
+  close(elFd);
+}
+
+INSTANTIATE_TEST_SUITE_P(SimpleValues, el2belOMPThreadTest,
+                         ::testing::Values(el2belOMPThreadTestArgs{1, "1,1", 3, {1, 1}}));
+

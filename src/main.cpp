@@ -2,6 +2,7 @@
 #include <iostream>
 #include <optional>
 #include <fcntl.h>
+#include "mmap_helper.hpp"
 
 void help() {
   std::cerr
@@ -35,7 +36,7 @@ consteval uint64_t unsafeHashConvert(const char* string) {
   uint64_t hash = 0;
   uint8_t i = 0;
   for(; string[i] != '\0' && i < 8; i++) {
-    hash |= (uint64_t) string[i] << i;
+    hash |= ((uint64_t) string[i]) << (i * 8);
   }
   return hash;
 }
@@ -82,8 +83,8 @@ int main(int argc, char** argv) {
   }
 
   // Input Validation
-  int inputFileFd;
-  if(inputFileName == nullptr && (inputFileFd = open(inputFileName, O_RDONLY |O_LARGEFILE, 0)) < 0) {
+  int inputFileFd = -1;
+  if(inputFileName == nullptr || (inputFileFd = open(inputFileName, O_RDONLY |O_LARGEFILE, 0)) < 0) {
     std::cerr << "input-file was not specified correctly" << std::endl;
     help();
     std::exit(-1);
@@ -99,10 +100,12 @@ int main(int argc, char** argv) {
     std::exit(-3);
   }
 
+
   switch(convert) {
     case el2bel:
-      //return el2bel(inputFileFd, outputFileStub);
+      return el2belConvert(inputFileFd, outputFileStub);
       break;
+    case bel2gr:
     default:
       std::cerr << "Should not get here" << std::endl;
       help();
