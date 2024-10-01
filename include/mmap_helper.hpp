@@ -46,8 +46,9 @@ struct MMapBuffer {
   void allocateStateMachine(int fd, int prot, bool isPublic, uint64_t limits, uint64_t fileIndex) {
     if(stillActive(limits, fileIndex)) return;
     assert(!buf);
-    this->currIndex = 0;
-    this->dataLimit = std::min(limits - fileIndex, PAGE_SIZE);
+    uint64_t lower4kBoundary = fileIndex & ~(0xFFF);
+    this->currIndex = fileIndex - lower4kBoundary;
+    this->dataLimit = std::min(limits - fileIndex + this->currIndex, PAGE_SIZE);
     int privateFlag = (isPublic) ? MAP_SHARED : MAP_PRIVATE;
     if(prot == PROT_WRITE) {
       int ret = ftruncate(fd, currIndex + dataLimit);
@@ -55,18 +56,20 @@ struct MMapBuffer {
         throw "ftruncate failed";
       }
     }
-    buf = mmap(nullptr, this->dataLimit, prot, privateFlag |MAP_POPULATE, fd, currIndex);
+    buf = mmap(nullptr, this->dataLimit, prot, privateFlag |MAP_POPULATE, fd, lower4kBoundary);
     if(buf == MAP_FAILED) throw "Mmap Failed";
   }
 
   template<uint64_t PAGE_SIZE, typename F>
-  void allocateStateMachineToFirstValue(int fd, int prot, bool isPublic, uint64_t limits, uint64_t fileIndex, F matcher) {
-  if(stillActive(limits, fileIndex)) return;
+  uint64_t allocateStateMachineToFirstValue(int fd, int prot, bool isPublic, uint64_t limits, uint64_t fileIndex, F matcher) {
+  if(stillActive(limits, fileIndex)) return 0;
   allocateStateMachine<PAGE_SIZE>(fd, prot, isPublic, limits, fileIndex);
   // Check for end of current file slice
-  if(limits == fileIndex + this->dataLimit) return;
+  if(limits == fileIndex + this->dataLimit) return 0;
   // Backtrack for safety reasons to ensure boundary values are fine
-  for(; matcher(((char*)this->buf)[this->dataLimit - 1]); this->dataLimit--);
+  uint64_t ret = 0;
+  for(; matcher(((char*)this->buf)[this->dataLimit - 1]); this->dataLimit--, ret++);
+  return ret;
 }
 
 };

@@ -14,6 +14,10 @@ constexpr uint64_t NORMAL_PAGE_SZ = 1 << 12;
 #define MAP_HUGE_2MB    (21 << MAP_HUGE_SHIFT)
 #define MAP_HUGE_1GB    (30 << MAP_HUGE_SHIFT)
 
+constexpr bool isdigitHand(char c) {
+  return '0' <= c && c <= '9';
+}
+
 inline uint64_t string2u64(char* string, uint64_t stringSize, uint64_t& u64) {
   uint64_t i = 0;
   uint64_t val = 0;
@@ -36,6 +40,7 @@ SrcDstIncrement el2belInternal(char* src, uint64_t* dst, SrcDstIncrement size) {
   const uint64_t dstSize = size.dstIncrement / sizeof(uint64_t);
   uint64_t i = 0;
   uint64_t placed = 0;
+  for(; i < srcSize && !isdigitHand(src[i]); i++);
   for(; i < srcSize && placed < dstSize; placed++) {
     i += string2u64(src + i, srcSize - i, dst[placed]);
   }
@@ -52,8 +57,10 @@ void el2belMapFromFile(int srcFd, int dstFd, SrcDstIncrement currIndexInFiles, S
       currIndexInFiles + totalAmountForward < limits;
       totalAmountForward += amountForward)
   {
-    src.allocateStateMachineToFirstValue<NORMAL_PAGE_SZ>(srcFd,
-        PROT_READ, true, limits.srcIncrement, currIndexInFiles.srcIncrement + totalAmountForward.srcIncrement,
+    totalAmountForward.srcIncrement +=
+      src.allocateStateMachineToFirstValue<NORMAL_PAGE_SZ>(srcFd,
+        PROT_READ, false, limits.srcIncrement,
+        currIndexInFiles.srcIncrement + totalAmountForward.srcIncrement,
         [](char c){ return  c == '\n' ||  c == '\0' || isspace(c);} );
     dst.allocateStateMachine<NORMAL_PAGE_SZ>(dstFd, PROT_WRITE, true, limits.dstIncrement, currIndexInFiles.dstIncrement + totalAmountForward.dstIncrement);
     amountForward = el2belInternal((char*)(((char*)src.buf) + src.currIndex),

@@ -235,5 +235,9 @@ TEST_P(el2belOMPThreadTest, SimpleTest) {
 
 INSTANTIATE_TEST_SUITE_P(SimpleValues, el2belOMPThreadTest,
                          ::testing::Values(el2belOMPThreadTestArgs{1, "1,1", 3, {1, 1}},
-                                          el2belOMPThreadTestArgs{2, "1,1\n1,1", 7, {1,1,1,1}}));
+                                          el2belOMPThreadTestArgs{2, "1,1\n1,1", 7, {1,1,1,1}},
+                                          el2belOMPThreadTestArgs{2, "1,1\n1,1\n1,1", 11, {1,1,1,1,1,1}},
+                                          el2belOMPThreadTestArgs{2, "1,1\n1,1\n1,1\n1,1", 16, {1,1,1,1,1,1,1,1}},
+                                          el2belOMPThreadTestArgs{3, "1,1\n1,1\n1,1", 11, {1,1,1,1,1,1}}
+                           ));
 
