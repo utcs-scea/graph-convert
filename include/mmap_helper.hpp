@@ -16,6 +16,16 @@ struct MMapBuffer {
 
   MMapBuffer(): buf(nullptr), currIndex(0), dataLimit(0) {}
 
+  void forceFree() {
+    if(buf) {
+      int ret = munmap(buf, dataLimit);
+      if(ret) {
+        throw "Munmap failed.";
+      }
+      buf = nullptr;
+    }
+  }
+
   void freeStateMachine() {
     assert(buf);
     if(currIndex == dataLimit) {
@@ -81,6 +91,10 @@ struct SrcDstIncrement {
     srcIncrement += other.srcIncrement;
     dstIncrement += other.dstIncrement;
     return *this;
+  }
+
+  SrcDstIncrement operator+(const SrcDstIncrement& other) {
+    return SrcDstIncrement{srcIncrement + other.srcIncrement, dstIncrement + other.dstIncrement};
   }
 };
 

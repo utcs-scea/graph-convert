@@ -49,13 +49,13 @@ void el2belMapFromFile(int srcFd, int dstFd, SrcDstIncrement currIndexInFiles, S
   MMapBuffer src;
   MMapBuffer dst;
   for(;
-      totalAmountForward < limits;
+      currIndexInFiles + totalAmountForward < limits;
       totalAmountForward += amountForward)
   {
     src.allocateStateMachineToFirstValue<NORMAL_PAGE_SZ>(srcFd,
-        PROT_READ, true, limits.srcIncrement, totalAmountForward.srcIncrement,
+        PROT_READ, true, limits.srcIncrement, currIndexInFiles.srcIncrement + totalAmountForward.srcIncrement,
         [](char c){ return  c == '\n' ||  c == '\0' || isspace(c);} );
-    dst.allocateStateMachine<NORMAL_PAGE_SZ>(dstFd, PROT_WRITE, true, limits.dstIncrement, totalAmountForward.dstIncrement);
+    dst.allocateStateMachine<NORMAL_PAGE_SZ>(dstFd, PROT_WRITE, true, limits.dstIncrement, currIndexInFiles.dstIncrement + totalAmountForward.dstIncrement);
     amountForward = el2belInternal((char*)(((char*)src.buf) + src.currIndex),
         (uint64_t*) (((char*)dst.buf) + dst.currIndex),
         SrcDstIncrement{src.dataLimit - src.currIndex, dst.dataLimit - dst.currIndex});
@@ -65,6 +65,7 @@ void el2belMapFromFile(int srcFd, int dstFd, SrcDstIncrement currIndexInFiles, S
     dst.freeStateMachine();
   }
 
+  dst.forceFree();
   int res = ftruncate(dstFd, totalAmountForward.dstIncrement);
   if(res) throw "Truncate failed";
 }
