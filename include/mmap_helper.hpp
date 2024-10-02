@@ -51,7 +51,7 @@ struct MMapBuffer {
     this->dataLimit = std::min(limits - fileIndex + this->currIndex, PAGE_SIZE);
     int privateFlag = (isPublic) ? MAP_SHARED : MAP_PRIVATE;
     if(prot == PROT_WRITE) {
-      int ret = ftruncate(fd, currIndex + dataLimit);
+      int ret = ftruncate(fd, lower4kBoundary + dataLimit);
       if(ret) {
         throw "ftruncate failed";
       }

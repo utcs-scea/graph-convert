@@ -7,6 +7,7 @@
 #include <cstring>
 #include <omp.h>
 #include <fcntl.h>
+#include <linux/limits.h>
 
 constexpr uint64_t NORMAL_PAGE_SZ = 1 << 12;
 // constexpr uint64_t HUGE_PAGE_SZ = 2 << 20;
@@ -21,13 +22,14 @@ constexpr bool isdigitHand(char c) {
 inline uint64_t string2u64(char* string, uint64_t stringSize, uint64_t& u64) {
   uint64_t i = 0;
   uint64_t val = 0;
-  for(char c = string[i]; i < stringSize && isdigit(c); i++, c = string[i]) {
+  char c;
+  for(; i < stringSize && isdigitHand(c = string[i]); i++) {
     val *= 10;
     val += c - '0';
   }
 
   u64 = val;
-  for(char c = string[i]; i < stringSize && !isdigit(c); i++, c = string[i]);
+  for(; i < stringSize && !isdigitHand(string[i]); i++);
   return i;
 }
 
@@ -77,22 +79,23 @@ void el2belMapFromFile(int srcFd, int dstFd, SrcDstIncrement currIndexInFiles, S
   if(res) throw "Truncate failed";
 }
 
+char pathName[PATH_MAX];
+
 int el2belConvert(int inputFileFd, const char* outputFileStub) {
   struct stat fileinfo;
   int rc = fstat(inputFileFd, &fileinfo);
   if(rc) throw "Failed to get fileinfo";
 
-  #pragma omp parallel
+  #pragma omp parallel private(pathName)
   {
     uint64_t tid;
     uint64_t threads;
     tid = omp_get_thread_num();
     threads = omp_get_num_threads();
     // 20 for uint64_t max  and then 2 for '\0' and '-'
-    uint64_t fileNameSize = sizeof(char) * (strlen(outputFileStub) + 22);
-    char* outputFileName = (char *) malloc(fileNameSize);
-    snprintf(outputFileName, fileNameSize - 1, "%s-%lx", outputFileStub, tid);
-    outputFileName[fileNameSize - 1] = '\0';
+    char* outputFileName = pathName;
+    snprintf(outputFileName, PATH_MAX, "%s-%lu", outputFileStub, tid);
+    outputFileName[PATH_MAX - 1] = '\0';
     int outputFileFd = open(outputFileName, O_RDWR | O_LARGEFILE | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
     if(outputFileFd < 0) {
       throw "Failed to open Output file.";

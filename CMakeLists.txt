@@ -46,7 +46,7 @@ MARK_AS_ADVANCED(
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_library(gconvert STATIC src/el2bel.cpp)
-target_include_directories(gconvert PRIVATE include/)
+target_include_directories(gconvert PUBLIC include/)
 set_property(TARGET gconvert PROPERTY CXX_STANDARD 23)
 target_compile_options(gconvert PRIVATE -Wall -Werror ${OpenMP_CXX_FLAGS})
 target_link_libraries(gconvert PRIVATE ${OpenMP_CXX_FLAGS})

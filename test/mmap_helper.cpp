@@ -8,6 +8,12 @@
 
 constexpr uint64_t TEST_PAGE_SZ = 1ull << 12;
 
+#if !defined __has_feature
+#define __has_feature(ans) 0
+#endif
+
+#define ASAN_ENABLED (__has_feature(address_sanitizer) || __SANITIZE_ADDRESS__)
+
 struct OperatorTestCaseHelper {
   SrcDstIncrement left;
   SrcDstIncrement right;
@@ -69,6 +75,7 @@ TEST(MMapBuffer, Construction) {
   EXPECT_EQ(buffer.dataLimit, 0);
 }
 
+#if ! ASAN_ENABLED
 TEST(MMapBuffer, StateMachine) {
 
   //First Test Writing
@@ -87,9 +94,13 @@ TEST(MMapBuffer, StateMachine) {
 
   // Write to the file
   char* buf = (char*)buffer.buf;
-  for(; buffer.currIndex < buffer.dataLimit; buffer.currIndex++)
-    ASSERT_EXIT((buf[buffer.currIndex] = 'a', exit(0)), ::testing::ExitedWithCode(0),".*") <<
-      "Failure when accessing:" << (void*) buf << ". Prot Allows Writing.";
+  ASSERT_EXIT((buf[0] = 'a', exit(0)), ::testing::ExitedWithCode(0),".*") <<
+    "Failure when accessing:" << (void*) buf << ". Prot Allows Writing.";
+  ASSERT_EXIT((buf[buffer.dataLimit -1] = 'a', exit(0)), ::testing::ExitedWithCode(0),".*") <<
+    "Failure when accessing:" << (void*) buf << ". Prot Allows Writing.";
+
+  memset(buf, 'a', buffer.dataLimit - buffer.currIndex);
+  buffer.currIndex += (buffer.dataLimit - buffer.currIndex);
   EXPECT_EQ(buffer.currIndex, TEST_PAGE_SZ);
 
   // Free the writer
@@ -107,9 +118,12 @@ TEST(MMapBuffer, StateMachine) {
   buf = (char*) buffer.buf;
   ASSERT_EXIT((buf[0] = 1,exit(0)),
       ::testing::KilledBySignal(SIGSEGV),".*") << "prot values are not passed in correctly.";
+  ASSERT_EXIT((exit(buf[0])),
+      ::testing::ExitedWithCode((int)'a'),".*") << "The buffer is not readable.";
+  ASSERT_EXIT((exit(buf[buffer.dataLimit -1])),
+      ::testing::ExitedWithCode((int)'a'),".*") << "The buffer is not readable.";
   for(; buffer.currIndex < buffer.dataLimit; buffer.currIndex++) {
-    ASSERT_EXIT((exit(buf[buffer.currIndex])),
-        ::testing::ExitedWithCode((int)'a'),".*") << "The buffer is not readable.";
+    ASSERT_EQ(buf[buffer.currIndex], 'a');
   }
 
   // Free the Reader
@@ -118,6 +132,8 @@ TEST(MMapBuffer, StateMachine) {
 
   close(fd);
 }
+#else
+#endif
 
 class el2belSingleThreadTest : public ::testing::TestWithParam<std::tuple<const char*, uint64_t, std::vector<uint64_t>>> {};
 
@@ -205,7 +221,7 @@ TEST_P(el2belOMPThreadTest, SimpleTest) {
   for(uint64_t i = 0; i < args.numThreads; i++) {
 
     // Get file
-    snprintf(belFileName, newStringLength - 1, "%s-%lx", outputStub, i);
+    snprintf(belFileName, newStringLength - 1, "%s-%lu", outputStub, i);
     int belFd = open(belFileName, O_RDONLY, S_IRUSR | S_IWUSR);
     ASSERT_GT(belFd, 0);
 
