@@ -82,4 +82,11 @@ function(gconvert_add_test TARGET SOURCEFILE)
   add_test(NAME ${TARGET}_test COMMAND ${TARGET})
 endfunction()
 
+function(gconvert_bin_test TARGET CONVERTTYPE INPUT ACTUAL EXPECTED)
+  add_test(NAME ${TARGET}-${CONVERTTYPE}-${INPUT}-${ACTUAL}-${COMPARISON}
+    COMMAND bash -c "diff -Z <(${TARGET} -t ${CONVERTTYPE} -i ${INPUT} -o ${ACTUAL} && ls ${ACTUAL}-* | xargs cat) ${COMPARISON}"
+    )
+  execute_process(rm -rf ${ACTUAL}-*)
+endfunction()
+
 gconvert_add_test(mmap_helper test/mmap_helper.cpp)

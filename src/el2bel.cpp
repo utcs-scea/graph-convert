@@ -110,14 +110,14 @@ int el2belConvert(int inputFileFd, const char* outputFileStub) {
       startBound = 0;
     } else {
       startBound = tid * (chunkSize);
-      for(; pread(inputFileFd, &c, 1, startBound) && c != '\n'; startBound--);
+      for(; startBound != 0 && pread(inputFileFd, &c, 1, startBound) && c != '\n'; startBound--);
     }
     uint64_t endBound;
     if(tid == threads - 1) {
       endBound = fileSize;
     } else {
       endBound = (tid + 1) * (chunkSize);
-      for(; pread(inputFileFd, &c, 1, endBound) && c != '\n'; endBound--);
+      for(; endBound != 0 && pread(inputFileFd, &c, 1, endBound) && c != '\n'; endBound--);
     }
     el2belMapFromFile(inputFileFd, outputFileFd, {startBound, 0}, {endBound, UINT64_MAX});
     close(outputFileFd);
