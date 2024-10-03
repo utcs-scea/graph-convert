@@ -83,10 +83,17 @@ function(gconvert_add_test TARGET SOURCEFILE)
 endfunction()
 
 function(gconvert_bin_test TARGET CONVERTTYPE INPUT ACTUAL EXPECTED)
-  add_test(NAME ${TARGET}-${CONVERTTYPE}-${INPUT}-${ACTUAL}-${COMPARISON}
-    COMMAND bash -c "diff -Z <(${TARGET} -t ${CONVERTTYPE} -i ${INPUT} -o ${ACTUAL} && ls ${ACTUAL}-* | xargs cat) ${COMPARISON}"
-    )
-  execute_process(rm -rf ${ACTUAL}-*)
+  add_test(NAME ${TARGET}-${CONVERTTYPE}-${INPUT}-${ACTUAL}-${EXPECTED}
+    COMMAND bash -c "diff -Z <($<TARGET_FILE:${TARGET}> -t ${CONVERTTYPE} -i ${INPUT} -o ${ACTUAL} \
+      && ls ${ACTUAL}-* \
+      | awk -F- -v OFS=- '{printf $NF; for (i = 1; i <= NF; i++) printf \"-%s\", $i; printf \"\\n\"}' \
+      | sort -n -k1 | awk -F- -v OFS=- '{printf $2; for(i = 3; i <= NF; i++) printf \"-%s\", $i; printf \"\\n\"}' \
+      | xargs cat) ${EXPECTED} \
+    && rm -rf ${ACTUAL}-*")
 endfunction()
 
 gconvert_add_test(mmap_helper test/mmap_helper.cpp)
+gconvert_bin_test(graph_convert el2bel ${CMAKE_SOURCE_DIR}/input/increment-64.el increment-64.bel ${CMAKE_SOURCE_DIR}/expected/increment-64.bel)
+gconvert_bin_test(graph_convert el2bel ${CMAKE_SOURCE_DIR}/input/increment-128.el increment-128.bel ${CMAKE_SOURCE_DIR}/expected/increment-128.bel)
+gconvert_bin_test(graph_convert el2bel ${CMAKE_SOURCE_DIR}/input/increment-256.el increment-256.bel ${CMAKE_SOURCE_DIR}/expected/increment-256.bel)
+#gconvert_bin_test(graph_convert el2bel ${CMAKE_SOURCE_DIR}/input/increment-8192.el increment-8192.bel ${CMAKE_SOURCE_DIR}/expected/increment-8192.bel)
