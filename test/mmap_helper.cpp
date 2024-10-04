@@ -87,10 +87,10 @@ TEST(MMapBuffer, StateMachine) {
   ASSERT_NE(buffer.buf, nullptr);
   ASSERT_NE(buffer.buf, MAP_FAILED);
   EXPECT_EQ(buffer.currIndex, 0);
-  EXPECT_EQ(buffer.dataLimit, TEST_PAGE_SZ);
+  EXPECT_EQ(buffer.dataLimit, TEST_PAGE_SZ *2);
   struct stat fileinfo;
   ASSERT_EQ(fstat(fd, &fileinfo), 0);
-  ASSERT_EQ(fileinfo.st_size, TEST_PAGE_SZ);
+  ASSERT_EQ(fileinfo.st_size, TEST_PAGE_SZ *2);
 
   // Write to the file
   char* buf = (char*)buffer.buf;
@@ -101,7 +101,7 @@ TEST(MMapBuffer, StateMachine) {
 
   memset(buf, 'a', buffer.dataLimit - buffer.currIndex);
   buffer.currIndex += (buffer.dataLimit - buffer.currIndex);
-  EXPECT_EQ(buffer.currIndex, TEST_PAGE_SZ);
+  EXPECT_EQ(buffer.currIndex, TEST_PAGE_SZ *2);
 
   // Free the writer
   ASSERT_NO_THROW(buffer.freeStateMachine());
@@ -112,7 +112,7 @@ TEST(MMapBuffer, StateMachine) {
   EXPECT_NE(buffer.buf, nullptr);
   EXPECT_NE(buffer.buf, MAP_FAILED);
   EXPECT_EQ(buffer.currIndex, 0);
-  EXPECT_EQ(buffer.dataLimit, TEST_PAGE_SZ);
+  EXPECT_EQ(buffer.dataLimit, TEST_PAGE_SZ * 2);
 
   // Read from the reader
   buf = (char*) buffer.buf;

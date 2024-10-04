@@ -48,7 +48,8 @@ struct MMapBuffer {
     assert(!buf);
     uint64_t lower4kBoundary = fileIndex & ~(0xFFF);
     this->currIndex = fileIndex - lower4kBoundary;
-    this->dataLimit = std::min(limits - fileIndex + this->currIndex, PAGE_SIZE);
+    //Must map two pages in order to ensure that the next part of the page can be mapped
+    this->dataLimit = std::min(limits - fileIndex + this->currIndex, 2 * PAGE_SIZE);
     int privateFlag = (isPublic) ? MAP_SHARED : MAP_PRIVATE;
     if(prot == PROT_WRITE) {
       int ret = ftruncate(fd, lower4kBoundary + dataLimit);
@@ -61,15 +62,13 @@ struct MMapBuffer {
   }
 
   template<uint64_t PAGE_SIZE, typename F>
-  uint64_t allocateStateMachineToFirstValue(int fd, int prot, bool isPublic, uint64_t limits, uint64_t fileIndex, F matcher) {
-  if(stillActive(limits, fileIndex)) return 0;
+  void allocateStateMachineToFirstValue(int fd, int prot, bool isPublic, uint64_t limits, uint64_t fileIndex, F matcher) {
+  if(stillActive(limits, fileIndex)) return;
   allocateStateMachine<PAGE_SIZE>(fd, prot, isPublic, limits, fileIndex);
   // Check for end of current file slice
-  if(limits == fileIndex + this->dataLimit) return 0;
+  if(limits == fileIndex + this->dataLimit - currIndex) return;
   // Backtrack for safety reasons to ensure boundary values are fine
-  uint64_t ret = 0;
-  for(; matcher(((char*)this->buf)[this->dataLimit - 1]); this->dataLimit--, ret++);
-  return ret;
+  for(; matcher(((char*)this->buf)[this->dataLimit - 1]); this->dataLimit--);
 }
 
 };

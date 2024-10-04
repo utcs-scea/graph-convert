@@ -59,12 +59,13 @@ void el2belMapFromFile(int srcFd, int dstFd, SrcDstIncrement currIndexInFiles, S
       currIndexInFiles + totalAmountForward < limits;
       totalAmountForward += amountForward)
   {
-    totalAmountForward.srcIncrement +=
-      src.allocateStateMachineToFirstValue<NORMAL_PAGE_SZ>(srcFd,
+    src.allocateStateMachineToFirstValue<NORMAL_PAGE_SZ>(srcFd,
         PROT_READ, false, limits.srcIncrement,
         currIndexInFiles.srcIncrement + totalAmountForward.srcIncrement,
-        [](char c){ return  c == '\n' ||  c == '\0' || isspace(c);} );
-    dst.allocateStateMachine<NORMAL_PAGE_SZ>(dstFd, PROT_WRITE, true, limits.dstIncrement, currIndexInFiles.dstIncrement + totalAmountForward.dstIncrement);
+        [](char c){ return isdigit(c);} );
+    dst.allocateStateMachine<NORMAL_PAGE_SZ>(dstFd,
+        PROT_WRITE, true, limits.dstIncrement,
+        currIndexInFiles.dstIncrement + totalAmountForward.dstIncrement);
     amountForward = el2belInternal((char*)(((char*)src.buf) + src.currIndex),
         (uint64_t*) (((char*)dst.buf) + dst.currIndex),
         SrcDstIncrement{src.dataLimit - src.currIndex, dst.dataLimit - dst.currIndex});
@@ -81,6 +82,21 @@ void el2belMapFromFile(int srcFd, int dstFd, SrcDstIncrement currIndexInFiles, S
 
 char pathName[PATH_MAX];
 
+inline uint64_t getStartBound(std::uint64_t tid, std::uint64_t numThreads, int fd, std::uint64_t fileSize) {
+  char c;
+  const uint64_t chunkSize = fileSize/numThreads;
+  uint64_t bound = 0;
+  if(tid == 0) {
+    return 0;
+  } else if (tid == numThreads){
+    return fileSize;
+  } else {
+    bound = tid * (chunkSize);
+    for(; bound != 0 && pread(fd, &c, 1, bound) && c != '\n'; bound--);
+    return bound;
+  }
+}
+
 int el2belConvert(int inputFileFd, const char* outputFileStub) {
   struct stat fileinfo;
   int rc = fstat(inputFileFd, &fileinfo);
@@ -89,9 +105,7 @@ int el2belConvert(int inputFileFd, const char* outputFileStub) {
   #pragma omp parallel private(pathName)
   {
     uint64_t tid;
-    uint64_t threads;
     tid = omp_get_thread_num();
-    threads = omp_get_num_threads();
     // 20 for uint64_t max  and then 2 for '\0' and '-'
     char* outputFileName = pathName;
     snprintf(outputFileName, PATH_MAX, "%s-%lu", outputFileStub, tid);
@@ -101,24 +115,9 @@ int el2belConvert(int inputFileFd, const char* outputFileStub) {
       throw "Failed to open Output file.";
     }
 
-    const uint64_t fileSize  = fileinfo.st_size;
-    const uint64_t chunkSize = fileSize/threads;
-    uint64_t startBound;
-
-    char c;
-    if(tid == 0) {
-      startBound = 0;
-    } else {
-      startBound = tid * (chunkSize);
-      for(; startBound != 0 && pread(inputFileFd, &c, 1, startBound) && c != '\n'; startBound--);
-    }
-    uint64_t endBound;
-    if(tid == threads - 1) {
-      endBound = fileSize;
-    } else {
-      endBound = (tid + 1) * (chunkSize);
-      for(; endBound != 0 && pread(inputFileFd, &c, 1, endBound) && c != '\n'; endBound--);
-    }
+    uint64_t numThreads = omp_get_num_threads();
+    uint64_t startBound = getStartBound(tid, numThreads, inputFileFd, fileinfo.st_size);
+    uint64_t endBound = getStartBound(tid + 1, numThreads, inputFileFd, fileinfo.st_size);
     el2belMapFromFile(inputFileFd, outputFileFd, {startBound, 0}, {endBound, UINT64_MAX});
     close(outputFileFd);
   }

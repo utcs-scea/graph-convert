@@ -92,8 +92,46 @@ function(gconvert_bin_test TARGET CONVERTTYPE INPUT ACTUAL EXPECTED)
     && rm -rf ${ACTUAL}-*")
 endfunction()
 
+function(gconvert_bin_incremental_el2bel_test TARGET SIZE)
+  set(OUTPUT "incremental_el2bel_test-${TARGET}-${SIZE}.bel")
+  set(INPUT "incremental_el2bel_test-${TARGET}-${SIZE}.el")
+  set(GENSCRIPT "${CMAKE_SOURCE_DIR}/scripts/generate_incremental_output.go")
+  add_test(NAME incremental_el2bel_test-${TARGET}-${SIZE}
+    COMMAND bash -c "rm -rf ${INPUT} ${OUTPUT} ${OUTPUT}-expected ${OUTPUT}-* \
+    && go run ${GENSCRIPT} -n ${SIZE} > ${INPUT} \
+    && go run ${GENSCRIPT} -n ${SIZE} -b > expected-${OUTPUT} \
+    && $<TARGET_FILE:${TARGET}> \
+        -t el2bel \
+        -i ${INPUT} \
+        -o ${OUTPUT} \
+    && ls ${OUTPUT}-* \
+      | awk -F- -v OFS=- '{printf $NF; for (i = 1; i <= NF; i++) printf \"-%s\", $i; printf \"\\n\"}' \
+      | sort -n -k1 | awk -F- -v OFS=- '{printf $2; for(i = 3; i <= NF; i++) printf \"-%s\", $i; printf \"\\n\"}' \
+      | xargs cat > ${OUTPUT} \
+    && diff \
+      ${OUTPUT} \
+      expected-${OUTPUT} \
+    && rm -rf ${INPUT} ${OUTPUT}-* ${OUTPUT} expected-${OUTPUT}")
+endfunction()
+
 gconvert_add_test(mmap_helper test/mmap_helper.cpp)
 gconvert_bin_test(graph_convert el2bel ${CMAKE_SOURCE_DIR}/input/increment-64.el increment-64.bel ${CMAKE_SOURCE_DIR}/expected/increment-64.bel)
 gconvert_bin_test(graph_convert el2bel ${CMAKE_SOURCE_DIR}/input/increment-128.el increment-128.bel ${CMAKE_SOURCE_DIR}/expected/increment-128.bel)
 gconvert_bin_test(graph_convert el2bel ${CMAKE_SOURCE_DIR}/input/increment-256.el increment-256.bel ${CMAKE_SOURCE_DIR}/expected/increment-256.bel)
-#gconvert_bin_test(graph_convert el2bel ${CMAKE_SOURCE_DIR}/input/increment-8192.el increment-8192.bel ${CMAKE_SOURCE_DIR}/expected/increment-8192.bel)
+gconvert_bin_test(graph_convert el2bel ${CMAKE_SOURCE_DIR}/input/increment-512.el increment-512.bel ${CMAKE_SOURCE_DIR}/expected/increment-512.bel)
+gconvert_bin_incremental_el2bel_test(graph_convert 32)
+gconvert_bin_incremental_el2bel_test(graph_convert 64)
+gconvert_bin_incremental_el2bel_test(graph_convert 128)
+gconvert_bin_incremental_el2bel_test(graph_convert 256)
+gconvert_bin_incremental_el2bel_test(graph_convert 512)
+gconvert_bin_incremental_el2bel_test(graph_convert 1024)
+gconvert_bin_incremental_el2bel_test(graph_convert 2048)
+gconvert_bin_incremental_el2bel_test(graph_convert 4096)
+gconvert_bin_incremental_el2bel_test(graph_convert 8192)
+option(BIG_TEST "Run big tests" OFF)
+if(BIG_TEST)
+gconvert_bin_incremental_el2bel_test(graph_convert 16384)
+gconvert_bin_incremental_el2bel_test(graph_convert 32768)
+gconvert_bin_incremental_el2bel_test(graph_convert 65536)
+gconvert_bin_incremental_el2bel_test(graph_convert 1073741824)
+endif()
