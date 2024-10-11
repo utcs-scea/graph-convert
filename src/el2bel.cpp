@@ -1,6 +1,9 @@
-
+#include "cli.hpp"
+#include "el2bel.hpp"
+#include "srcdst.hpp"
 #include "mmap_helper.hpp"
 
+#include <cstdio>
 #include <ctype.h>
 #include <unistd.h>
 #include <sys/stat.h>

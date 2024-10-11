@@ -4,7 +4,9 @@
 #include <sys/stat.h>
 #include <omp.h>
 
+#include "el2bel.hpp"
 #include "mmap_helper.hpp"
+#include "srcdst.hpp"
 
 constexpr uint64_t TEST_PAGE_SZ = 1ull << 12;
 

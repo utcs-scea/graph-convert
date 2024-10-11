@@ -1,7 +1,9 @@
 #include <getopt.h>
 #include <iostream>
-#include <optional>
 #include <fcntl.h>
+
+#include "cli.hpp"
+#include "el2bel.hpp"
 #include "mmap_helper.hpp"
 
 void help() {
@@ -11,50 +13,6 @@ void help() {
     << "\t-o <output-file-stub>: This is the output file stub of the type specified. It should not include the file extension\n"
     << "\t-t <conversion-type>: This specifies what conversion should take place. Multiple specfied construct a pipeline.\n"
     << std::flush;
-}
-
-// All of these must be 8bytes or less;
-enum ConversionType {
-  unspecified,
-  el2bel,
-  bel2gr,
-};
-
-std::optional<uint64_t> convert8byteStringHash(char* string) {
-  uint64_t hash = 0;
-  uint8_t i = 0;
-  for(; string[i] != '\0' && i < 8; i++) {
-    hash |= ((uint64_t) string[i]) << (i * 8);
-  }
-  if(string[i] != '\0') {
-    return std::nullopt;
-  }
-  return hash;
-}
-
-consteval uint64_t unsafeHashConvert(const char* string) {
-  uint64_t hash = 0;
-  uint8_t i = 0;
-  for(; string[i] != '\0' && i < 8; i++) {
-    hash |= ((uint64_t) string[i]) << (i * 8);
-  }
-  return hash;
-}
-
-ConversionType convertFromInput(char* string) {
-  std::optional<uint64_t> maybeHash = convert8byteStringHash(string);
-  if(maybeHash == std::nullopt)
-    return unspecified;
-
-  auto hashed = *maybeHash;
-  switch(hashed) {
-    case unsafeHashConvert("el2bel"):
-      return el2bel;
-    case unsafeHashConvert("bel2gr"):
-      return bel2gr;
-    default:
-      return unspecified;
-  }
 }
 
 int main(int argc, char** argv) {

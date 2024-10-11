@@ -4,6 +4,27 @@ project(graph-convert)
 
 find_package(OpenMP REQUIRED)
 
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  GIT_REPOSITORY https://github.com/google/googletest.git
+  GIT_TAG v1.15.2
+)
+
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
+set(BUILD_GTEST ON CACHE BOOL "" FORCE)
+
+FetchContent_MakeAvailable(googletest)
+
+FetchContent_Declare(
+  virtual-library-context
+  GIT_REPOSITORY https://github.com/AdityaAtulTewari/Virtual-Library-Context.git
+  GIT_TAG 06e390fb5de29231f00cdb00b59ea990654993f1
+)
+
+FetchContent_MakeAvailable(virtual-library-context)
+
 #create the sanitize build type
 set(CMAKE_CXX_FLAGS_ASAN
   "-O3 -fsanitize=address -DNDEBUG" CACHE STRING "Flags used by the C++ compiler during sanitizer builds"
@@ -52,6 +73,14 @@ target_compile_options(gconvert PRIVATE -Wall -Werror ${OpenMP_CXX_FLAGS})
 target_link_libraries(gconvert PRIVATE ${OpenMP_CXX_FLAGS})
 target_compile_features(gconvert PUBLIC cxx_std_23)
 
+add_library(gconvert_shared SHARED src/el2bel.cpp)
+target_include_directories(gconvert_shared PUBLIC include/)
+set_property(TARGET gconvert_shared PROPERTY CMAKE_POSITION_INDEPENDENT_CODE ON)
+set_property(TARGET gconvert_shared PROPERTY CXX_STANDARD 23)
+target_compile_options(gconvert_shared PRIVATE -Wall -Werror ${OpenMP_CXX_FLAGS})
+target_link_libraries(gconvert_shared PRIVATE ${OpenMP_CXX_FLAGS})
+target_compile_features(gconvert_shared PUBLIC cxx_std_23)
+
 add_executable(graph_convert src/main.cpp)
 set_property(TARGET graph_convert PROPERTY CXX_STANDARD 23)
 target_include_directories(graph_convert PRIVATE include/)
@@ -59,18 +88,12 @@ target_compile_options(graph_convert PRIVATE -Wall -Werror)
 target_link_libraries(graph_convert PRIVATE gconvert)
 target_compile_features(graph_convert PUBLIC cxx_std_23)
 
-include(FetchContent)
-FetchContent_Declare(
-  googletest
-  GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG v1.15.2
-)
-
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
-set(BUILD_GTEST ON CACHE BOOL "" FORCE)
-
-FetchContent_MakeAvailable(googletest)
+add_executable(vlc_trivial src/vlc_trivial.cpp)
+set_property(TARGET vlc_trivial PROPERTY CXX_STANDARD 23)
+target_include_directories(vlc_trivial PRIVATE include/)
+target_compile_options(vlc_trivial PRIVATE -Wall -Werror)
+target_link_libraries(vlc_trivial PRIVATE gconvert_shared virtual-library-context)
+target_compile_features(vlc_trivial PUBLIC cxx_std_23)
 
 enable_testing()
 
@@ -128,6 +151,18 @@ gconvert_bin_incremental_el2bel_test(graph_convert 1024)
 gconvert_bin_incremental_el2bel_test(graph_convert 2048)
 gconvert_bin_incremental_el2bel_test(graph_convert 4096)
 gconvert_bin_incremental_el2bel_test(graph_convert 8192)
+gconvert_bin_incremental_el2bel_test(vlc_trivial 32)
+gconvert_bin_incremental_el2bel_test(vlc_trivial 64)
+gconvert_bin_incremental_el2bel_test(vlc_trivial 128)
+gconvert_bin_incremental_el2bel_test(vlc_trivial 256)
+gconvert_bin_incremental_el2bel_test(vlc_trivial 512)
+gconvert_bin_incremental_el2bel_test(vlc_trivial 1024)
+gconvert_bin_incremental_el2bel_test(vlc_trivial 2048)
+gconvert_bin_incremental_el2bel_test(vlc_trivial 4096)
+gconvert_bin_incremental_el2bel_test(vlc_trivial 8192)
+gconvert_bin_incremental_el2bel_test(vlc_trivial 16384)
+gconvert_bin_incremental_el2bel_test(vlc_trivial 32768)
+gconvert_bin_incremental_el2bel_test(vlc_trivial 65536)
 option(BIG_TEST "Run big tests" OFF)
 if(BIG_TEST)
 gconvert_bin_incremental_el2bel_test(graph_convert 16384)

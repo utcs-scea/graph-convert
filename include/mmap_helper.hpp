@@ -63,46 +63,15 @@ struct MMapBuffer {
 
   template<uint64_t PAGE_SIZE, typename F>
   void allocateStateMachineToFirstValue(int fd, int prot, bool isPublic, uint64_t limits, uint64_t fileIndex, F matcher) {
-  if(stillActive(limits, fileIndex)) return;
-  allocateStateMachine<PAGE_SIZE>(fd, prot, isPublic, limits, fileIndex);
-  // Check for end of current file slice
-  if(limits == fileIndex + this->dataLimit - currIndex) return;
-  // Backtrack for safety reasons to ensure boundary values are fine
-  for(; matcher(((char*)this->buf)[this->dataLimit - 1]); this->dataLimit--);
-}
+    if(stillActive(limits, fileIndex)) return;
+    allocateStateMachine<PAGE_SIZE>(fd, prot, isPublic, limits, fileIndex);
+    // Check for end of current file slice
+    if(limits == fileIndex + this->dataLimit - currIndex) return;
+    // Backtrack for safety reasons to ensure boundary values are fine
+    for(; matcher(((char*)this->buf)[this->dataLimit - 1]); this->dataLimit--);
+  }
 
 };
-
-struct SrcDstIncrement {
-  uint64_t srcIncrement;
-  uint64_t dstIncrement;
-
-  constexpr SrcDstIncrement() : srcIncrement(0), dstIncrement(0) {}
-
-  constexpr SrcDstIncrement(uint64_t src, uint64_t dst) : srcIncrement(src), dstIncrement(dst) {}
-
-  constexpr ~SrcDstIncrement() {}
-
-  bool operator==(const SrcDstIncrement& other) const {
-    return (srcIncrement == other.srcIncrement) && (dstIncrement == other.dstIncrement);
-  }
-  bool operator<(const SrcDstIncrement& other) const {
-    return (srcIncrement < other.srcIncrement) && (dstIncrement < other.dstIncrement);
-  }
-  SrcDstIncrement operator+=(const SrcDstIncrement& other) {
-    srcIncrement += other.srcIncrement;
-    dstIncrement += other.dstIncrement;
-    return *this;
-  }
-
-  SrcDstIncrement operator+(const SrcDstIncrement& other) {
-    return SrcDstIncrement{srcIncrement + other.srcIncrement, dstIncrement + other.dstIncrement};
-  }
-};
-
-void el2belMapFromFile(int srcFd, int dstFd, SrcDstIncrement currIndexInFiles, SrcDstIncrement limits);
-
-int el2belConvert(int inputFileFd, const char* outputFileStub);
 
 #undef MAP_HUGE_2MB
 #undef MAP_HUGE_1GB
